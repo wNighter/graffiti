@@ -1,0 +1,203 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "✦ Sprayz" [ref=e6] [cursor=pointer]:
+        - /url: "#"
+        - generic [ref=e7]: ✦
+        - generic [ref=e8]: Sprayz
+      - navigation [ref=e9]:
+        - link "Explore" [ref=e10] [cursor=pointer]:
+          - /url: "#features"
+        - link "Community" [ref=e11] [cursor=pointer]:
+          - /url: "#community"
+        - link "Gallery" [ref=e12] [cursor=pointer]:
+          - /url: "#gallery"
+        - link "About" [ref=e13] [cursor=pointer]:
+          - /url: "#about"
+      - generic [ref=e14]:
+        - button "Switch language" [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: EN
+          - generic [ref=e18]: 中
+        - link "Sign In" [ref=e19] [cursor=pointer]:
+          - /url: "#"
+        - link "Join Free" [ref=e20] [cursor=pointer]:
+          - /url: "#"
+  - main [ref=e21]:
+    - generic [ref=e26]:
+      - generic [ref=e27]: Now in Open Beta — Join the Wave
+      - heading "The World's First 3D Graffiti Community" [level=1] [ref=e29]:
+        - text: The World's First
+        - text: 3D Graffiti
+        - text: Community
+      - paragraph [ref=e30]: Paint, tag, and sculpt in immersive 3D space. Discover thousands of artists pushing the boundaries of street art — walls are no longer the limit.
+      - generic [ref=e31]:
+        - link "Start Creating Free" [ref=e32] [cursor=pointer]:
+          - /url: "#"
+        - link "▶ Watch the Reel" [ref=e33] [cursor=pointer]:
+          - /url: "#community"
+          - generic [ref=e34]: ▶
+          - text: Watch the Reel
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: 120K+
+          - generic [ref=e38]: Artists
+        - generic [ref=e39]:
+          - generic [ref=e40]: 800K+
+          - generic [ref=e41]: Artworks
+        - generic [ref=e42]:
+          - generic [ref=e43]: 60+
+          - generic [ref=e44]: Countries
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - paragraph [ref=e49]: Why Sprayz
+        - heading "Everything a street artist needs — reimagined for the metaverse" [level=2] [ref=e50]:
+          - generic [ref=e51]: Everything a street artist needs —
+          - text: reimagined for the metaverse
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]: 🎨
+          - heading "Real-Time 3D Canvas" [level=3] [ref=e55]
+          - paragraph [ref=e56]: Paint directly on 3D surfaces using our WebGL-powered brush engine. Layer colors, blend textures, and see your art come alive in three dimensions.
+        - generic [ref=e57]:
+          - generic [ref=e58]: 🌆
+          - heading "Infinite Virtual Cities" [level=3] [ref=e59]
+          - paragraph [ref=e60]: Explore procedurally generated urban environments — subways, underpasses, rooftops. Every wall is a blank canvas waiting for your tag.
+        - generic [ref=e61]:
+          - generic [ref=e62]: 👾
+          - heading "Live Jam Sessions" [level=3] [ref=e63]
+          - paragraph [ref=e64]: Hop into shared spaces with artists worldwide. Collaborate in real-time, battle for wall space, or build epic murals together.
+        - generic [ref=e65]:
+          - generic [ref=e66]: 🏆
+          - heading "Crew Battles" [level=3] [ref=e67]
+          - paragraph [ref=e68]: Form a crew and compete in weekly themed battles. Community votes decide the winner — reputation is earned on the wall.
+        - generic [ref=e69]:
+          - generic [ref=e70]: 🖼️
+          - heading "NFT & Gallery Export" [level=3] [ref=e71]
+          - paragraph [ref=e72]: Mint your best pieces as NFTs or export high-res renders for print. Own your art, for real.
+        - generic [ref=e73]:
+          - generic [ref=e74]: 🔧
+          - heading "Custom Tools & Caps" [level=3] [ref=e75]
+          - paragraph [ref=e76]: Unlock hundreds of spray cap shapes, brush presets, and special FX — fat caps, skinny lines, chrome effects and more.
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - paragraph [ref=e80]: The Community
+        - heading "120,000 artists can't be wrong" [level=2] [ref=e81]
+      - generic [ref=e82]:
+        - generic [ref=e83]: Wildstyle
+        - generic [ref=e84]: Throw-ups
+        - generic [ref=e85]: Murals
+        - generic [ref=e86]: Letters
+        - generic [ref=e87]: Characters
+        - generic [ref=e88]: Abstract
+        - generic [ref=e89]: Stencil
+        - generic [ref=e90]: 3D Letters
+        - generic [ref=e91]: Chrome
+        - generic [ref=e92]: Blackbook
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - paragraph [ref=e95]: "\"Sprayz completely changed how I think about graffiti. I painted a 40-story skyscraper last night from my bedroom. The walls are literally endless here.\""
+          - generic [ref=e96]:
+            - generic [ref=e97]: M
+            - generic [ref=e98]:
+              - generic [ref=e99]: Maya Chen
+              - generic [ref=e100]: "@maya.sprayz"
+        - generic [ref=e101]:
+          - paragraph [ref=e102]: "\"The crew battle system is insane. Our squad went from nobodies to top 10 in three weeks. The community actually votes for quality — no bots, no BS.\""
+          - generic [ref=e103]:
+            - generic [ref=e104]: K
+            - generic [ref=e105]:
+              - generic [ref=e106]: Kiko Ramirez
+              - generic [ref=e107]: "@kiko_fresh"
+        - generic [ref=e108]:
+          - paragraph [ref=e109]: "\"I've been writing since '98 and this is the first digital tool that actually feels like spray. The pressure sensitivity and drip physics are chef's kiss.\""
+          - generic [ref=e110]:
+            - generic [ref=e111]: D
+            - generic [ref=e112]:
+              - generic [ref=e113]: DRX One
+              - generic [ref=e114]: "@drx_one"
+    - generic [ref=e116]:
+      - paragraph [ref=e117]: Get Started
+      - heading "Your first wall is waiting." [level=2] [ref=e118]
+      - paragraph [ref=e119]: No downloads. No setup. Jump straight into a 3D world and leave your mark in seconds. Free forever for core features.
+      - generic [ref=e120]:
+        - link "Create Your First Tag" [ref=e121] [cursor=pointer]:
+          - /url: "#"
+        - link "Browse the Gallery →" [ref=e122] [cursor=pointer]:
+          - /url: "#"
+      - paragraph [ref=e123]: No credit card required · Available on Web, iOS & Android
+  - contentinfo [ref=e124]:
+    - generic [ref=e125]:
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - generic [ref=e128]: ✦
+          - generic [ref=e129]: Sprayz
+        - paragraph [ref=e130]:
+          - generic [ref=e131]: The world's first 3D graffiti community.
+          - text: Paint beyond walls.
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - heading "Product" [level=4] [ref=e134]
+          - list [ref=e135]:
+            - listitem [ref=e136]:
+              - link "Features" [ref=e137] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e138]:
+              - link "Gallery" [ref=e139] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e140]:
+              - link "Crew Battles" [ref=e141] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e142]:
+              - link "NFT Mint" [ref=e143] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e144]:
+              - link "Roadmap" [ref=e145] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e146]:
+          - heading "Community" [level=4] [ref=e147]
+          - list [ref=e148]:
+            - listitem [ref=e149]:
+              - link "Discord" [ref=e150] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e151]:
+              - link "Instagram" [ref=e152] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e153]:
+              - link "Twitter / X" [ref=e154] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e155]:
+              - link "YouTube" [ref=e156] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e157]:
+              - link "Blog" [ref=e158] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e159]:
+          - heading "Company" [level=4] [ref=e160]
+          - list [ref=e161]:
+            - listitem [ref=e162]:
+              - link "About" [ref=e163] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e164]:
+              - link "Careers" [ref=e165] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e166]:
+              - link "Press Kit" [ref=e167] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e168]:
+              - link "Contact" [ref=e169] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e170]:
+          - heading "Legal" [level=4] [ref=e171]
+          - list [ref=e172]:
+            - listitem [ref=e173]:
+              - link "Terms of Service" [ref=e174] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e175]:
+              - link "Privacy Policy" [ref=e176] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e177]:
+              - link "Cookie Settings" [ref=e178] [cursor=pointer]:
+                - /url: "#"
+    - generic [ref=e180]:
+      - generic [ref=e181]: © 2025 Sprayz Inc. All rights reserved.
+      - generic [ref=e182]: Made with spray & WebGL ✦

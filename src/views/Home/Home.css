@@ -1,0 +1,24 @@
+/* ── 基础重置（覆盖全局 overflow: hidden）── */
+.home {
+  width: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #080810;
+  color: #e8e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  scroll-behavior: smooth;
+}
+
+/* ── 通用布局 ── */
+.section-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+@media (max-width: 768px) {
+  .section-inner {
+    padding: 0 20px;
+  }
+}

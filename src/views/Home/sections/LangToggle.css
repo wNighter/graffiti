@@ -1,0 +1,30 @@
+.lang-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(232, 232, 240, 0.45);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.lang-toggle:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.06);
+}
+
+.lang-toggle span.active {
+  color: #c084fc;
+}
+
+.lang-toggle .divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 1px;
+}

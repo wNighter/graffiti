@@ -1,0 +1,17 @@
+- generic [ref=e210]:
+  - generic [ref=e211]:
+    - generic [ref=e212]:
+      - button "🖌️ 画笔" [ref=e213] [cursor=pointer]
+      - button "🎨 喷漆" [ref=e214] [cursor=pointer]
+      - button "🧹 橡皮擦" [ref=e215] [cursor=pointer]
+      - button "🗑️ 清除" [ref=e216] [cursor=pointer]
+    - generic [ref=e217]:
+      - generic [ref=e218]: 颜色
+      - textbox [ref=e219] [cursor=pointer]: "#ff3399"
+    - generic [ref=e220]:
+      - generic [ref=e221]: 笔刷 39px
+      - slider [active] [ref=e222]: "39"
+    - generic [ref=e223]:
+      - button "✅ 保存上墙" [ref=e224] [cursor=pointer]
+      - button "❌ 放弃" [ref=e225] [cursor=pointer]
+  - generic [ref=e227]: 🧱 墙面尺寸 9 × 11 m · 画布比例 576 × 704

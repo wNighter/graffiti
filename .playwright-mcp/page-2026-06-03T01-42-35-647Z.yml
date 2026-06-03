@@ -1,0 +1,17 @@
+- generic [ref=e183]:
+  - generic: ＋
+  - generic:
+    - generic: WASD 移动
+    - generic: 鼠标 控制视角
+    - generic: E 绘制墙面
+    - generic: V 切换视角
+  - button "👁️ 第一人称" [ref=e186] [cursor=pointer]
+  - button "← 返回" [ref=e187] [cursor=pointer]
+  - generic [ref=e188] [cursor=pointer]:
+    - generic:
+      - generic: 🎮
+      - generic: 点击进入街区
+      - generic:
+        - text: WASD 移动 · 鼠标控制视角
+        - text: 靠近建筑墙面按 E 涂鸦
+      - generic: 按 Esc 可退出游览模式

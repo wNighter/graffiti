@@ -1,0 +1,109 @@
+.footer {
+  background: #06060e;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.footer-inner {
+  padding-top: 72px;
+  padding-bottom: 56px;
+  display: flex;
+  gap: 80px;
+  align-items: flex-start;
+}
+
+/* ── 品牌区 ── */
+.footer-brand {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 220px;
+}
+
+.footer-brand .logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.footer-brand .logo-icon {
+  font-size: 18px;
+  color: #a855f7;
+}
+
+.footer-brand .logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #c084fc 0%, #818cf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.footer-tagline {
+  font-size: 13px;
+  line-height: 1.7;
+  color: rgba(232, 232, 240, 0.35);
+  margin: 0;
+}
+
+/* ── 链接列 ── */
+.footer-links {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 40px;
+}
+
+.footer-col-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(232, 232, 240, 0.4);
+  margin: 0 0 16px;
+}
+
+.footer-col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-col a {
+  font-size: 14px;
+  color: rgba(232, 232, 240, 0.5);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-col a:hover { color: #e8e8f0; }
+
+/* ── 底部版权 ── */
+.footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.footer-bottom-inner {
+  padding-top: 20px;
+  padding-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: rgba(232, 232, 240, 0.25);
+}
+
+@media (max-width: 1024px) {
+  .footer-inner { flex-direction: column; gap: 48px; }
+  .footer-links { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .footer-links { grid-template-columns: repeat(2, 1fr); gap: 32px; }
+  .footer-bottom-inner { flex-direction: column; gap: 8px; text-align: center; }
+}

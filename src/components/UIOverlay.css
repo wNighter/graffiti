@@ -1,0 +1,68 @@
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 24px;
+}
+
+.ui-panel {
+  pointer-events: all;
+  background: rgba(10, 10, 15, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 220px;
+}
+
+.ui-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e8e8f0;
+  letter-spacing: 0.04em;
+  font-family: system-ui, sans-serif;
+}
+
+.ui-mode-switcher {
+  display: flex;
+  gap: 8px;
+}
+
+.ui-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ui-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ui-btn.active {
+  background: rgba(120, 80, 255, 0.3);
+  border-color: rgba(120, 80, 255, 0.6);
+  color: #c4b5fd;
+}
+
+.ui-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
