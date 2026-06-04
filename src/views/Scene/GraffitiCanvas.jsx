@@ -153,9 +153,9 @@ const ImagePlacer = ({ bitmap, canvasRef, canvasDisplaySize, zoom, pan, onConfir
         <button
           className={`tool-btn lock-btn ${locked ? 'active' : ''}`}
           onClick={() => setLocked(l => !l)}
-          title={locked ? '切换为自由缩放' : '切换为固定比例'}
+          title={locked ? tc.imgPlacer.lockTitle : tc.imgPlacer.freeTitle}
         >
-          {locked ? '🔒 固定比例' : '🔓 自由缩放'}
+          {locked ? tc.imgPlacer.lockRatio : tc.imgPlacer.freeScale}
         </button>
         <button className="action-btn save-btn" onClick={handleConfirm}>{tc.imgPlacer.confirm}</button>
         <button className="action-btn discard-btn" onClick={onCancel}>{tc.imgPlacer.cancel}</button>

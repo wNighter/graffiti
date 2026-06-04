@@ -1,9 +1,170 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
+import * as THREE from 'three'
 import { useStreetScene } from '../../hooks/useStreetScene'
 import { useRoamingRecorder } from '../../hooks/useRoamingRecorder'
+import { useI18n } from '../../i18n'
 import GraffitiCanvas from './GraffitiCanvas'
 import SettingsPanel from './SettingsPanel'
 import './Scene.css'
+
+// 街区世界坐标范围
+const MAP_WORLD = { minX: -31, maxX: 31, minZ: -29, maxZ: 24 }
+const MAP_W = 150
+const MAP_H = Math.round(MAP_W * (MAP_WORLD.maxZ - MAP_WORLD.minZ) / (MAP_WORLD.maxX - MAP_WORLD.minX))
+
+// 建筑列表（与 useStreetScene 中 layout + BUILDING_TYPES 对应）
+const BUILDING_DEFS = [
+  { x: -22, z: -22, w: 12, d: 12 },
+  { x:  -8, z: -22, w: 13, d: 10 },
+  { x:   5, z: -22, w: 10, d:  7 },
+  { x:  20, z: -22, w: 13, d: 10 },
+  { x: -23, z: -13, w:  8, d:  8 },
+  { x:  -8, z: -13, w: 10, d:  7 },
+  { x:   6, z: -13, w: 13, d: 10 },
+  { x:  20, z: -13, w: 12, d: 12 },
+  { x: -20, z:  -3.5, w: 17, d: 13 },
+  { x:  -5, z:  -3.5, w: 10, d:  7 },
+  { x:  10, z:  -3.5, w: 13, d: 10 },
+  { x:  22, z:  -3.5, w: 12, d: 12 },
+  { x: -21, z:  10,   w: 13, d: 10 },
+  { x:  -5, z:  10,   w:  8, d:  8 },
+  { x:  10, z:  10,   w: 10, d:  7 },
+  { x:  22, z:  10,   w: 17, d: 13 },
+]
+
+const worldToMap = (wx, wz) => ({
+  mx: Math.round((wx - MAP_WORLD.minX) / (MAP_WORLD.maxX - MAP_WORLD.minX) * MAP_W),
+  my: Math.round((wz - MAP_WORLD.minZ) / (MAP_WORLD.maxZ - MAP_WORLD.minZ) * MAP_H),
+})
+
+const MiniMap = ({ stateRef }) => {
+  const canvasRef = useRef(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let rafId
+
+    const draw = () => {
+      rafId = requestAnimationFrame(draw)
+      ctx.clearRect(0, 0, MAP_W, MAP_H)
+
+      // 背景
+      ctx.fillStyle = 'rgba(8, 10, 20, 0.82)'
+      ctx.fillRect(0, 0, MAP_W, MAP_H)
+
+      // 建筑块
+      ctx.fillStyle = 'rgba(80, 90, 130, 0.75)'
+      BUILDING_DEFS.forEach(({ x, z, w, d }) => {
+        const tl = worldToMap(x - w / 2, z - d / 2)
+        const br = worldToMap(x + w / 2, z + d / 2)
+        ctx.fillRect(tl.mx, tl.my, br.mx - tl.mx, br.my - tl.my)
+      })
+
+      // 玩家位置
+      const s = stateRef.current
+      if (!s) return
+      const src = s.viewMode === 'fps' ? s.camera : s.playerMesh
+      if (!src) return
+      const { mx, my } = worldToMap(src.position.x, src.position.z)
+
+      // 朝向箭头（FPS 用相机 yaw，TPS 用 tpsYaw）
+      let yaw = 0
+      if (s.viewMode === 'fps' && s.camera) {
+        const dir = new THREE.Vector3()
+        s.camera.getWorldDirection(dir)
+        // canvas +Y = world +Z，对 dir.z 取反才能与地图方向一致
+        yaw = Math.atan2(dir.x, -dir.z)
+      } else {
+        // TPS 前进方向为 (-sin(tpsYaw), -cos(tpsYaw))，取负号对齐地图
+        yaw = -(s.tpsYaw ?? 0)
+      }
+
+      ctx.save()
+      ctx.translate(mx, my)
+      ctx.rotate(yaw)
+      ctx.fillStyle = '#f87171'
+      ctx.beginPath()
+      ctx.moveTo(0, -6)
+      ctx.lineTo(4, 4)
+      ctx.lineTo(0, 2)
+      ctx.lineTo(-4, 4)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+
+      // 边框
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(0.5, 0.5, MAP_W - 1, MAP_H - 1)
+    }
+
+    draw()
+    return () => cancelAnimationFrame(rafId)
+  }, [stateRef])
+
+  return (
+    <div className="minimap-wrap">
+      <div className="minimap-label">MINIMAP</div>
+      <canvas ref={canvasRef} width={MAP_W} height={MAP_H} className="minimap-canvas" />
+    </div>
+  )
+}
+
+const LoadingOverlay = ({ ready, onEnter }) => {
+  const { t } = useI18n()
+  const tl = t.scene.loading
+  const steps = tl.steps
+
+  const [step, setStep] = useState(0)
+  const [progress, setProgress] = useState(0)
+  const [entered, setEntered] = useState(false)
+
+  useEffect(() => {
+    if (ready) {
+      setStep(steps.length - 1)
+      setProgress(100)
+      return
+    }
+    const totalMs = 2200
+    const stepMs = totalMs / (steps.length - 1)
+    let cur = 0
+    const iv = setInterval(() => {
+      cur++
+      if (cur >= steps.length - 1) { clearInterval(iv); return }
+      setStep(cur)
+      setProgress(Math.round((cur / (steps.length - 1)) * 90))
+    }, stepMs)
+    return () => clearInterval(iv)
+  }, [ready, steps])
+
+  const handleEnter = () => {
+    setEntered(true)
+    onEnter()
+  }
+
+  return (
+    <div className={`scene-loading-overlay${entered ? ' scene-loading-exit' : ''}`}>
+      <div className="scene-loading-card">
+        <div className="scene-loading-title">SPRAYZ</div>
+        <div className="scene-loading-subtitle">{tl.subtitle}</div>
+
+        <div className="scene-loading-bar-wrap">
+          <div className="scene-loading-bar" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="scene-loading-percent">{progress}%</div>
+        <div className="scene-loading-step">{steps[step]}</div>
+
+        {ready && (
+          <button className="scene-loading-enter" onClick={handleEnter}>
+            {tl.enter}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const Scene = ({ onBack }) => {
   const containerRef = useRef(null)
@@ -13,6 +174,8 @@ const Scene = ({ onBack }) => {
   const [locked, setLocked] = useState(false)
   const [nearWall, setNearWall] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
+  const [entered, setEntered] = useState(false)
 
   // 漫游录制状态
   const [roaming, setRoaming] = useState(false)
@@ -33,11 +196,17 @@ const Scene = ({ onBack }) => {
     if (!isLocked) setSettingsOpen(true)
   }, [])
 
+  const handleReady = useCallback(() => setSceneReady(true), [])
+
+  const { t } = useI18n()
+  const ts = t.scene.hud
+
   const { resumeScene, stateRef } = useStreetScene(containerRef, {
     onWallSelect: handleWallSelect,
     onViewModeChange: setViewMode,
     onLockChange: handleLockChange,
     onStartRoaming: useCallback(() => handleStartRoamingRef.current?.(), []),
+    onReady: handleReady,
   })
 
   // 检测是否靠近墙面
@@ -93,6 +262,7 @@ const Scene = ({ onBack }) => {
       s.camera.position.set(s.playerMesh.position.x, 1.7, s.playerMesh.position.z)
       s.controls?.lock()
     } else {
+      s.isSwitchingView = true
       s.controls?.unlock()
       s.playerMesh.position.set(s.camera.position.x, 0, s.camera.position.z)
       s.tpsYaw = Math.PI
@@ -101,60 +271,50 @@ const Scene = ({ onBack }) => {
     setLocked(next === 'tps')
   }, [stateRef])
 
+  const handleEnterScene = useCallback(() => {
+    setEntered(true)
+    stateRef.current?.controls?.lock()
+  }, [stateRef])
+
   return (
     <div className="scene-root">
       <div ref={containerRef} className="scene-canvas-container" />
 
-      {!paintMode && (
+      {/* 加载 / 进入遮罩 */}
+      {!entered && (
+        <LoadingOverlay ready={sceneReady} onEnter={handleEnterScene} />
+      )}
+
+      {!paintMode && entered && (
         <>
           {/* 准星（漫游中隐藏） */}
           {!roaming && <div className="crosshair">＋</div>}
 
           {/* 左下角操作说明 */}
           <div className="hud-hints">
-            <span><kbd>WASD</kbd> 移动</span>
+            <span><kbd>WASD</kbd> {ts.move}</span>
             {viewMode === 'fps'
-              ? <span><kbd>鼠标</kbd> 控制视角</span>
-              : <span><kbd>左键拖拽</kbd> 旋转视角</span>
+              ? <span><kbd>Mouse</kbd> {ts.lookMouse}</span>
+              : <span><kbd>Drag</kbd> {ts.lookDrag}</span>
             }
-            <span><kbd>E</kbd> 绘制墙面</span>
-            <span><kbd>V</kbd> 切换视角</span>
-            <span><kbd>Esc</kbd> 打开设置</span>
+            <span><kbd>E</kbd> {ts.paint}</span>
+            <span><kbd>V</kbd> {viewMode === 'fps' ? ts.switchTps : ts.switchFps}</span>
+            <span><kbd>Esc</kbd> {ts.openSettings}</span>
           </div>
 
           {/* 靠近墙面时提示 */}
           {nearWall && !roaming && (
-            <div className="wall-hint">
-              🎨 按 <kbd>E</kbd> 开始绘制
-            </div>
-          )}
-
-          {/* 视角切换按钮（漫游中隐藏） */}
-          {!roaming && (
-            <button className="view-mode-btn" onClick={toggleView} title="切换第一/第三人称 (V)">
-              {viewMode === 'fps' ? '👁️ 第一人称' : '🎮 第三人称'}
-            </button>
+            <div className="wall-hint">{ts.paintHint}</div>
           )}
 
           {/* 漫游中进度提示 */}
           {roaming && (
-            <div className="roam-overlay-hint">🚶 自动漫游录制中 {roamProgress}%，请勿操作…</div>
+            <div className="roam-overlay-hint">{ts.roaming.replace('{p}', roamProgress)}</div>
           )}
 
-          {/* 返回 */}
-          <button className="back-btn" onClick={onBack}>← 返回</button>
+          {/* 右下角小地图 */}
+          <MiniMap stateRef={stateRef} />
 
-          {/* FPS 未锁定 且 设置面板未打开 时的引导遮罩 */}
-          {viewMode === 'fps' && !locked && !settingsOpen && !roaming && (
-            <div className="start-overlay" onClick={() => stateRef.current?.controls?.lock()}>
-              <div className="start-card">
-                <div className="start-icon">🎮</div>
-                <div className="start-title">点击进入街区</div>
-                <div className="start-desc">WASD 移动 · 鼠标控制视角<br />靠近围墙、建筑或道具按 E 涂鸦</div>
-                <div className="start-hint">按 Esc 打开设置面板</div>
-              </div>
-            </div>
-          )}
         </>
       )}
 
@@ -171,6 +331,8 @@ const Scene = ({ onBack }) => {
       <SettingsPanel
         open={settingsOpen}
         onClose={handleCloseSettings}
+        onResume={resumeScene}
+        onBack={onBack}
         roaming={roaming}
         roamProgress={roamProgress}
         videoUrl={videoUrl}

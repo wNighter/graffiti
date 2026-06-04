@@ -944,13 +944,14 @@ const createWall = (scene, x, z, width, height, depth, rotY = 0) => {
   const faceBack  = makeFace(width, height)
   const faceRight = makeFace(depth, height)
   const faceLeft  = makeFace(depth, height)
+  const poOpts = { polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }
   const materials = [
-    new THREE.MeshLambertMaterial({ map: faceRight.texture }),
-    new THREE.MeshLambertMaterial({ map: faceLeft.texture }),
-    new THREE.MeshLambertMaterial({ color: 0x6a6a7a }),
-    new THREE.MeshLambertMaterial({ color: 0x111111 }),
-    new THREE.MeshLambertMaterial({ map: faceFront.texture }),
-    new THREE.MeshLambertMaterial({ map: faceBack.texture }),
+    new THREE.MeshLambertMaterial({ map: faceRight.texture, ...poOpts }),
+    new THREE.MeshLambertMaterial({ map: faceLeft.texture, ...poOpts }),
+    new THREE.MeshLambertMaterial({ color: 0x6a6a7a, ...poOpts }),
+    new THREE.MeshLambertMaterial({ color: 0x111111, ...poOpts }),
+    new THREE.MeshLambertMaterial({ map: faceFront.texture, ...poOpts }),
+    new THREE.MeshLambertMaterial({ map: faceBack.texture, ...poOpts }),
   ]
   const geo = new THREE.BoxGeometry(width, height, depth)
   const mesh = new THREE.Mesh(geo, materials)
@@ -1108,10 +1109,10 @@ const buildStreetScene = (scene) => {
     { type: 'shop',      x:  -8, z: -13 },
     { type: 'apartment', x:   6, z: -13 },
     { type: 'corner',    x:  20, z: -13 },
-    { type: 'warehouse', x: -20, z:  -3 },
-    { type: 'shop',      x:  -5, z:  -3 },
-    { type: 'apartment', x:  10, z:  -3 },
-    { type: 'corner',    x:  22, z:  -3 },
+    { type: 'warehouse', x: -20, z:  -3.5 },
+    { type: 'shop',      x:  -5, z:  -3.5 },
+    { type: 'apartment', x:  10, z:  -3.5 },
+    { type: 'corner',    x:  22, z:  -3.5 },
     { type: 'apartment', x: -21, z:  10 },
     { type: 'tower',     x:  -5, z:  10 },
     { type: 'shop',      x:  10, z:  10 },
@@ -1205,7 +1206,7 @@ const isInsideBuilding = (px, pz, boxes) =>
 
 // ─── Hook ─────────────────────────────────────────────────────────
 
-export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, onLockChange, onStartRoaming }) => {
+export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, onLockChange, onStartRoaming, onReady }) => {
   const stateRef = useRef({
     renderer: null, scene: null, camera: null, controls: null,
     buildingMeshes: [], buildingBoxes: [], paintableMeshes: [], keys: {}, viewMode: 'fps',
@@ -1219,13 +1220,18 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
     s.onViewModeChange = onViewModeChange
     s.onLockChange = onLockChange
     s.onStartRoaming = onStartRoaming
-  }, [onWallSelect, onViewModeChange, onLockChange, onStartRoaming])
+    s.onReady = onReady
+  }, [onWallSelect, onViewModeChange, onLockChange, onStartRoaming, onReady])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     const s = stateRef.current
 
+    // 推迟到下一个宏任务，让 Loading 界面先渲染出来再阻塞主线程
+    const initTimer = setTimeout(() => init(), 0)
+
+    const init = () => {
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(container.clientWidth, container.clientHeight)
@@ -1282,7 +1288,10 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
 
     const controls = new PointerLockControls(camera, renderer.domElement)
     controls.addEventListener('lock', () => s.onLockChange?.(true))
-    controls.addEventListener('unlock', () => { if (!s.isPainting) s.onLockChange?.(false) })
+    controls.addEventListener('unlock', () => {
+      if (s.isSwitchingView) { s.isSwitchingView = false; return }
+      if (!s.isPainting) s.onLockChange?.(false)
+    })
     s.controls = controls
 
     const onMouseDown = (e) => {
@@ -1290,19 +1299,19 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         s.tpsDragging = true; s.tpsDragLastX = e.clientX
       }
     }
-    const onMouseMove = (e) => {
+    s._onMouseMove = (e) => {
       if (s.viewMode === 'tps' && s.tpsDragging) {
         s.tpsYaw += (e.clientX - s.tpsDragLastX) * 0.004
         s.tpsDragLastX = e.clientX
       }
     }
-    const onMouseUp = () => { s.tpsDragging = false }
+    s._onMouseUp = () => { s.tpsDragging = false }
     renderer.domElement.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('mousemove', s._onMouseMove)
+    window.addEventListener('mouseup', s._onMouseUp)
     renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
 
-    const onKeyDown = (e) => {
+    s._onKeyDown = (e) => {
       s.keys[e.code] = true
       if (e.code === 'KeyV' && !s.isPainting) {
         const next = s.viewMode === 'fps' ? 'tps' : 'fps'
@@ -1312,6 +1321,7 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
           camera.position.set(s.playerMesh.position.x, 1.7, s.playerMesh.position.z)
           controls.lock()
         } else {
+          s.isSwitchingView = true
           controls.unlock()
           s.playerMesh.position.set(camera.position.x, 0, camera.position.z)
           s.tpsYaw = Math.PI
@@ -1327,15 +1337,16 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         s.onStartRoaming?.()
       }
     }
-    const onKeyUp = (e) => { s.keys[e.code] = false }
-    document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('keyup', onKeyUp)
+    s._onKeyUp = (e) => { s.keys[e.code] = false }
+    document.addEventListener('keydown', s._onKeyDown)
+    document.addEventListener('keyup', s._onKeyUp)
 
     const raycaster = new THREE.Raycaster()
     const center = new THREE.Vector2(0, 0)
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 
     let time = 0
+    let readyFired = false
     const animate = () => {
       s.animId = requestAnimationFrame(animate)
       time += 0.004
@@ -1424,25 +1435,34 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
       }
 
       renderer.render(scene, camera)
+      if (!readyFired) {
+        readyFired = true
+        s.onReady?.()
+      }
     }
     animate()
 
-    const onResize = () => {
+    s._onResize = () => {
       const w = container.clientWidth, h = container.clientHeight
       renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix()
     }
-    window.addEventListener('resize', onResize)
+    window.addEventListener('resize', s._onResize)
+
+    } // end init
 
     return () => {
+      clearTimeout(initTimer)
       cancelAnimationFrame(s.animId)
-      controls.dispose()
-      document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener('keyup', onKeyUp)
-      window.removeEventListener('resize', onResize)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      renderer.dispose()
-      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
+      if (s.controls) s.controls.dispose()
+      document.removeEventListener('keydown', s._onKeyDown)
+      document.removeEventListener('keyup', s._onKeyUp)
+      window.removeEventListener('resize', s._onResize)
+      window.removeEventListener('mousemove', s._onMouseMove)
+      window.removeEventListener('mouseup', s._onMouseUp)
+      if (s.renderer) {
+        s.renderer.dispose()
+        if (container.contains(s.renderer.domElement)) container.removeChild(s.renderer.domElement)
+      }
     }
   }, [containerRef])
 
