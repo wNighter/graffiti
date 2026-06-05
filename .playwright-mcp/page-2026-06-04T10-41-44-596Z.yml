@@ -1,0 +1,32 @@
+- generic [ref=e183]:
+  - generic: ＋
+  - generic:
+    - generic: WASD Move
+    - generic: Mouse Mouse look
+    - generic: E Paint wall
+    - generic: V Switch to 3rd person
+    - generic: Esc Open settings
+  - generic:
+    - generic: MINIMAP
+  - complementary [ref=e194]:
+    - generic [ref=e195]:
+      - generic [ref=e196]: ⚙️ Settings
+      - button "✕" [ref=e197] [cursor=pointer]
+    - generic [ref=e198]:
+      - generic [ref=e199]:
+        - generic [ref=e200]: 🎬 Roam Video
+        - paragraph [ref=e201]: Auto-generate a first-person roaming video (~30s). Download as .webm when done.
+        - button "Start Recording" [ref=e202] [cursor=pointer]
+      - generic:
+        - generic:
+          - text: 🖼️ Gallery Export
+          - generic: Coming Soon
+        - paragraph: Export all wall graffiti as a high-res image set.
+      - generic:
+        - generic:
+          - text: 🔊 Audio Settings
+          - generic: Coming Soon
+        - paragraph: Adjust ambient and spray sound volume.
+    - generic [ref=e203]:
+      - button "← Back to Home" [ref=e204] [cursor=pointer]
+      - text: Press Esc or click ✕ to close and return

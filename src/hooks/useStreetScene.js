@@ -1008,12 +1008,65 @@ const createGate = (scene) => {
   return meshes
 }
 
+// ─── 道路渲染 ────────────────────────────────────────────────────
+
+const ROAD_COLORS = {
+  motorway: 0x6b7a8d, trunk: 0x7a8b6b, primary: 0x7a7060,
+  secondary: 0x6e6a60, tertiary: 0x686460, residential: 0x5c5850,
+  service: 0x504e4a, pedestrian: 0x8a8478, footway: 0x8e8a80,
+  path: 0x8a8680, cycleway: 0x607070, unclassified: 0x585450,
+}
+
+const createRoads = (scene, roads) => {
+  if (!roads?.length) return
+
+  roads.forEach(road => {
+    const pts = road.points
+    if (!pts || pts.length < 2) return
+
+    const hw = (road.width || 6) / 2   // 半宽
+    const color = ROAD_COLORS[road.type] || 0x605e5a
+    const vertices = [], indices = []
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, z1] = pts[i]
+      const [x2, z2] = pts[i + 1]
+      const dx = x2 - x1, dz = z2 - z1
+      const len = Math.sqrt(dx * dx + dz * dz)
+      if (len < 0.01) return
+      // 垂直于路段方向的偏移向量（法线）
+      const nx = (-dz / len) * hw
+      const nz = ( dx / len) * hw
+
+      const base = vertices.length / 3
+      // 四个角点（y=0.02 略高于地面避免 z-fighting）
+      vertices.push(x1 + nx, 0.02, z1 + nz)
+      vertices.push(x1 - nx, 0.02, z1 - nz)
+      vertices.push(x2 + nx, 0.02, z2 + nz)
+      vertices.push(x2 - nx, 0.02, z2 - nz)
+      indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2)
+    }
+
+    if (vertices.length === 0) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+    geo.setIndex(indices)
+    geo.computeVertexNormals()
+    scene.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color })))
+  })
+}
+
 // ─── 街区场景构建 ────────────────────────────────────────────────
 
-const buildStreetScene = (scene) => {
-  const buildingMeshes = []
-  const buildingBoxes  = []
-  const paintableMeshes = []
+const buildStreetScene = (scene, osmBuildings, roads, spawnPoint) => {
+  const buildingMeshes   = []
+  const buildingBoxes    = []
+  const buildingPolygons = [] // OSM 模式专用：footprint 世界坐标多边形
+  const paintableMeshes  = []
+
+  const originX = spawnPoint?.x ?? 0
+  const originZ = spawnPoint?.z ?? 0
+  const groundW = 200, groundD = 200
 
   // 外部地面
   const groundCanvas = document.createElement('canvas')
@@ -1031,10 +1084,11 @@ const buildStreetScene = (scene) => {
   groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping
   groundTex.repeat.set(6, 6)
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 100),
+    new THREE.PlaneGeometry(groundW, groundD),
     new THREE.MeshLambertMaterial({ map: groundTex, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 })
   )
   ground.rotation.x = -Math.PI / 2
+  ground.position.set(originX, 0, originZ)
   scene.add(ground)
 
   // 街区内部地面（砖纹）
@@ -1099,38 +1153,88 @@ const buildStreetScene = (scene) => {
   // 大门（入口招牌）
   createGate(scene).forEach(m => paintableMeshes.push(m))
 
-  // 建筑布局（16栋）
-  const layout = [
-    { type: 'corner',    x: -22, z: -22 },
-    { type: 'apartment', x:  -8, z: -22 },
-    { type: 'shop',      x:   5, z: -22 },
-    { type: 'apartment', x:  20, z: -22 },
-    { type: 'tower',     x: -23, z: -13 },
-    { type: 'shop',      x:  -8, z: -13 },
-    { type: 'apartment', x:   6, z: -13 },
-    { type: 'corner',    x:  20, z: -13 },
-    { type: 'warehouse', x: -20, z:  -3.5 },
-    { type: 'shop',      x:  -5, z:  -3.5 },
-    { type: 'apartment', x:  10, z:  -3.5 },
-    { type: 'corner',    x:  22, z:  -3.5 },
-    { type: 'apartment', x: -21, z:  10 },
-    { type: 'tower',     x:  -5, z:  10 },
-    { type: 'shop',      x:  10, z:  10 },
-    { type: 'warehouse', x:  22, z:  10 },
-  ]
+  if (osmBuildings?.length) {
+    // OSM 模式：用 footprint 做 ExtrudeGeometry，精确还原建筑轮廓
+    const MAX_HEIGHT = 80
+    osmBuildings.forEach(b => {
+      const styleKey = b.style || 'apartment'
+      const template = BUILDING_TYPES[styleKey] || BUILDING_TYPES.apartment
+      const h = Math.min(b.height || template.h, MAX_HEIGHT)
 
-  layout.forEach(({ type, x, z }) => {
-    const def = BUILDING_TYPES[type]
-    const mesh = createBuilding(scene, def, x, z)
-    buildingMeshes.push(mesh)
-    const margin = 0.9
-    buildingBoxes.push({
-      minX: x - def.w / 2 - margin,
-      maxX: x + def.w / 2 + margin,
-      minZ: z - def.d / 2 - margin,
-      maxZ: z + def.d / 2 + margin,
+      // footprint 转世界坐标（去掉首尾重复的闭合点）
+      const raw = b.footprint || []
+      const pts = raw.length >= 2 &&
+        raw[0][0] === raw[raw.length - 1][0] && raw[0][1] === raw[raw.length - 1][1]
+        ? raw.slice(0, -1) : raw
+      const worldPoly = pts.map(([dx, dz]) => [b.cx + dx, b.cz + dz])
+
+      if (worldPoly.length < 3) {
+        // 无有效 footprint，退回 BoxGeometry
+        const def = { ...template, w: b.w, h, d: b.d }
+        buildingMeshes.push(createBuilding(scene, def, b.cx, b.cz))
+        buildingPolygons.push(null) // 用 null 占位，碰撞用包围盒兜底
+        const m = 0.9
+        buildingBoxes.push({ minX: b.cx - b.w/2 - m, maxX: b.cx + b.w/2 + m, minZ: b.cz - b.d/2 - m, maxZ: b.cz + b.d/2 + m })
+        return
+      }
+
+      // Three.js Shape：(wx, -wz)，再 rotation.x = -PI/2 使挤出方向朝上
+      const shape = new THREE.Shape(worldPoly.map(([wx, wz]) => new THREE.Vector2(wx, -wz)))
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false })
+
+      const hexStr = template.baseColor.toString(16).padStart(6, '0')
+      const drawFn = drawWindows[styleKey] || drawWindows.apartment
+      const wallCanvas = makeOffscreen(Math.max(b.w, b.d), h, (ctx, pw, ph) => drawFn(ctx, pw, ph, hexStr))
+      const wallTex = new THREE.CanvasTexture(wallCanvas)
+
+      const mesh = new THREE.Mesh(geo, [
+        new THREE.MeshLambertMaterial({ map: wallTex }),          // 侧面（墙）
+        new THREE.MeshLambertMaterial({ color: template.roofColor }), // 顶/底面
+      ])
+      mesh.rotation.x = -Math.PI / 2
+      mesh.userData = {
+        isBuilding: true,
+        faces: [{ offscreen: wallCanvas, texture: wallTex, wallW: b.w, wallH: h, hasGraffiti: false }],
+      }
+      scene.add(mesh)
+      buildingMeshes.push(mesh)
+
+      // 碰撞：精确 footprint 多边形（不含 margin，道路不会被误封）
+      buildingPolygons.push(worldPoly)
     })
-  })
+  } else {
+    // 默认模式：16 栋硬编码建筑布局
+    const layout = [
+      { type: 'corner',    x: -22, z: -22 },
+      { type: 'apartment', x:  -8, z: -22 },
+      { type: 'shop',      x:   5, z: -22 },
+      { type: 'apartment', x:  20, z: -22 },
+      { type: 'tower',     x: -23, z: -13 },
+      { type: 'shop',      x:  -8, z: -13 },
+      { type: 'apartment', x:   6, z: -13 },
+      { type: 'corner',    x:  20, z: -13 },
+      { type: 'warehouse', x: -20, z:  -3.5 },
+      { type: 'shop',      x:  -5, z:  -3.5 },
+      { type: 'apartment', x:  10, z:  -3.5 },
+      { type: 'corner',    x:  22, z:  -3.5 },
+      { type: 'apartment', x: -21, z:  10 },
+      { type: 'tower',     x:  -5, z:  10 },
+      { type: 'shop',      x:  10, z:  10 },
+      { type: 'warehouse', x:  22, z:  10 },
+    ]
+    layout.forEach(({ type, x, z }) => {
+      const def = BUILDING_TYPES[type]
+      const mesh = createBuilding(scene, def, x, z)
+      buildingMeshes.push(mesh)
+      const margin = 0.9
+      buildingBoxes.push({
+        minX: x - def.w / 2 - margin,
+        maxX: x + def.w / 2 + margin,
+        minZ: z - def.d / 2 - margin,
+        maxZ: z + def.d / 2 + margin,
+      })
+    })
+  }
 
   // 路灯（内部通道）
   ;[
@@ -1196,22 +1300,40 @@ const buildStreetScene = (scene) => {
     { cx:   3, cz: -25, color: 0x334466 },
   ].forEach(({ cx, cz, color }) => paintableMeshes.push(addCar(scene, cx, cz, color)))
 
-  return { buildingMeshes, buildingBoxes, paintableMeshes }
+  // OSM 模式下渲染道路
+  if (osmBuildings?.length) createRoads(scene, roads)
+
+  return { buildingMeshes, buildingBoxes, buildingPolygons, paintableMeshes }
 }
 
 // ─── 碰撞检测 ────────────────────────────────────────────────────
 
-const isInsideBuilding = (px, pz, boxes) =>
+// 射线法点在多边形内测试（支持凹多边形）
+const pointInPolygon = (px, pz, polygon) => {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, zi] = polygon[i]
+    const [xj, zj] = polygon[j]
+    if ((zi > pz) !== (zj > pz) && px < (xj - xi) * (pz - zi) / (zj - zi) + xi)
+      inside = !inside
+  }
+  return inside
+}
+
+// polygons 为 OSM footprint 世界坐标数组，boxes 为硬编码场景包围盒
+const isInsideBuilding = (px, pz, boxes, polygons) =>
+  (polygons?.some(poly => pointInPolygon(px, pz, poly)) ?? false) ||
   boxes.some(b => px > b.minX && px < b.maxX && pz > b.minZ && pz < b.maxZ)
 
 // ─── Hook ─────────────────────────────────────────────────────────
 
-export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, onLockChange, onStartRoaming, onReady }) => {
+export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, onLockChange, onStartRoaming, onReady, buildings, roads, spawnPoint }) => {
   const stateRef = useRef({
     renderer: null, scene: null, camera: null, controls: null,
-    buildingMeshes: [], buildingBoxes: [], paintableMeshes: [], keys: {}, viewMode: 'fps',
+    buildingMeshes: [], buildingBoxes: [], buildingPolygons: [], paintableMeshes: [], keys: {}, viewMode: 'fps',
     playerMesh: null, tpsYaw: Math.PI, tpsDragging: false, tpsDragLastX: 0,
     highlightedInfo: null, animId: null, isPainting: false,
+    boundMinX: -29.5, boundMaxX: 29.5, boundMinZ: -27.5, boundMaxZ: 35,
   })
 
   useEffect(() => {
@@ -1255,13 +1377,22 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
     scene.add(fillLight)
 
     const camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 300)
-    camera.position.set(0, 1.7, 29)
+    const spawn = spawnPoint || { x: 0, z: 29 }
+    camera.position.set(spawn.x, 1.7, spawn.z)
     s.camera = camera
 
-    const { buildingMeshes, buildingBoxes, paintableMeshes } = buildStreetScene(scene)
-    s.buildingMeshes  = buildingMeshes
-    s.buildingBoxes   = buildingBoxes
-    s.paintableMeshes = paintableMeshes
+    const { buildingMeshes, buildingBoxes, buildingPolygons, paintableMeshes } = buildStreetScene(scene, buildings, roads, spawnPoint)
+    s.buildingMeshes    = buildingMeshes
+    s.buildingBoxes     = buildingBoxes
+    s.buildingPolygons  = buildingPolygons.filter(Boolean) // 过滤掉 null 占位
+    s.paintableMeshes   = paintableMeshes
+
+    // 活动边界：以出生点为中心 ±48m（留 2m 内边距）
+    const pad = 98
+    s.boundMinX = spawn.x - pad
+    s.boundMaxX = spawn.x + pad
+    s.boundMinZ = spawn.z - pad
+    s.boundMaxZ = spawn.z + pad
 
     // 玩家模型
     const playerGroup = new THREE.Group()
@@ -1281,7 +1412,7 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
     )
     bag.position.set(0, 0.8, 0.22)
     playerGroup.add(bag)
-    playerGroup.position.set(0, 0, 8)
+    playerGroup.position.set(spawn.x, 0, spawn.z)
     playerGroup.visible = false
     scene.add(playerGroup)
     s.playerMesh = playerGroup
@@ -1368,12 +1499,12 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         if (keys['KeyW']) controls.moveForward(speed)
         if (keys['KeyS']) controls.moveForward(-speed)
         camera.position.y = 1.7
-        if (isInsideBuilding(camera.position.x, prevZ, s.buildingBoxes)) camera.position.x = prevX
+        if (isInsideBuilding(camera.position.x, prevZ, s.buildingBoxes, s.buildingPolygons)) camera.position.x = prevX
         if (keys['KeyA']) controls.moveRight(-speed)
         if (keys['KeyD']) controls.moveRight(speed)
         camera.position.y = 1.7
-        if (isInsideBuilding(camera.position.x, camera.position.z, s.buildingBoxes)) camera.position.z = prevZ
-        if (isInsideBuilding(camera.position.x, camera.position.z, s.buildingBoxes)) {
+        if (isInsideBuilding(camera.position.x, camera.position.z, s.buildingBoxes, s.buildingPolygons)) camera.position.z = prevZ
+        if (isInsideBuilding(camera.position.x, camera.position.z, s.buildingBoxes, s.buildingPolygons)) {
           camera.position.x = prevX; camera.position.z = prevZ
         }
       } else if (s.viewMode === 'tps') {
@@ -1388,9 +1519,9 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         if (keys['KeyA']) { p.position.x -= rx * speed; p.position.z -= rz * speed; moved = true }
         if (keys['KeyD']) { p.position.x += rx * speed; p.position.z += rz * speed; moved = true }
         if (moved) {
-          if (isInsideBuilding(p.position.x, prevZ, s.buildingBoxes)) p.position.x = prevX
-          if (isInsideBuilding(p.position.x, p.position.z, s.buildingBoxes)) p.position.z = prevZ
-          if (isInsideBuilding(p.position.x, p.position.z, s.buildingBoxes)) {
+          if (isInsideBuilding(p.position.x, prevZ, s.buildingBoxes, s.buildingPolygons)) p.position.x = prevX
+          if (isInsideBuilding(p.position.x, p.position.z, s.buildingBoxes, s.buildingPolygons)) p.position.z = prevZ
+          if (isInsideBuilding(p.position.x, p.position.z, s.buildingBoxes, s.buildingPolygons)) {
             p.position.x = prevX; p.position.z = prevZ
           }
           p.rotation.y = Math.atan2(fx, fz)
@@ -1405,11 +1536,11 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         camera.lookAt(p.position.x, p.position.y + 1.2, p.position.z)
       }
 
-      camera.position.x = clamp(camera.position.x, -29.5, 29.5)
-      camera.position.z = clamp(camera.position.z, -27.5, 35)
+      camera.position.x = clamp(camera.position.x, s.boundMinX, s.boundMaxX)
+      camera.position.z = clamp(camera.position.z, s.boundMinZ, s.boundMaxZ)
       if (s.viewMode === 'tps') {
-        s.playerMesh.position.x = clamp(s.playerMesh.position.x, -29.5, 29.5)
-        s.playerMesh.position.z = clamp(s.playerMesh.position.z, -27.5, 35)
+        s.playerMesh.position.x = clamp(s.playerMesh.position.x, s.boundMinX, s.boundMaxX)
+        s.playerMesh.position.z = clamp(s.playerMesh.position.z, s.boundMinZ, s.boundMaxZ)
       }
 
       if (s.highlightedInfo) {
@@ -1464,7 +1595,7 @@ export const useStreetScene = (containerRef, { onWallSelect, onViewModeChange, o
         if (container.contains(s.renderer.domElement)) container.removeChild(s.renderer.domElement)
       }
     }
-  }, [containerRef])
+  }, [containerRef, buildings, roads])
 
   const resumeScene = () => {
     const s = stateRef.current

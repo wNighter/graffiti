@@ -1,62 +1,46 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useStreetScene } from '../../hooks/useStreetScene'
 import { useRoamingRecorder } from '../../hooks/useRoamingRecorder'
 import { useI18n } from '../../i18n'
 import GraffitiCanvas from './GraffitiCanvas'
 import SettingsPanel from './SettingsPanel'
+import { loadDistrict, getWorldBounds } from '../../data/districtLoader'
 import './Scene.css'
 
-// 街区世界坐标范围
-const MAP_WORLD = { minX: -31, maxX: 31, minZ: -29, maxZ: 24 }
 const MAP_W = 150
-const MAP_H = Math.round(MAP_W * (MAP_WORLD.maxZ - MAP_WORLD.minZ) / (MAP_WORLD.maxX - MAP_WORLD.minX))
 
-// 建筑列表（与 useStreetScene 中 layout + BUILDING_TYPES 对应）
-const BUILDING_DEFS = [
-  { x: -22, z: -22, w: 12, d: 12 },
-  { x:  -8, z: -22, w: 13, d: 10 },
-  { x:   5, z: -22, w: 10, d:  7 },
-  { x:  20, z: -22, w: 13, d: 10 },
-  { x: -23, z: -13, w:  8, d:  8 },
-  { x:  -8, z: -13, w: 10, d:  7 },
-  { x:   6, z: -13, w: 13, d: 10 },
-  { x:  20, z: -13, w: 12, d: 12 },
-  { x: -20, z:  -3.5, w: 17, d: 13 },
-  { x:  -5, z:  -3.5, w: 10, d:  7 },
-  { x:  10, z:  -3.5, w: 13, d: 10 },
-  { x:  22, z:  -3.5, w: 12, d: 12 },
-  { x: -21, z:  10,   w: 13, d: 10 },
-  { x:  -5, z:  10,   w:  8, d:  8 },
-  { x:  10, z:  10,   w: 10, d:  7 },
-  { x:  22, z:  10,   w: 17, d: 13 },
-]
-
-const worldToMap = (wx, wz) => ({
-  mx: Math.round((wx - MAP_WORLD.minX) / (MAP_WORLD.maxX - MAP_WORLD.minX) * MAP_W),
-  my: Math.round((wz - MAP_WORLD.minZ) / (MAP_WORLD.maxZ - MAP_WORLD.minZ) * MAP_H),
-})
-
-const MiniMap = ({ stateRef }) => {
+const MiniMap = ({ stateRef, buildingDefs, worldBounds }) => {
   const canvasRef = useRef(null)
+  const mapH = worldBounds
+    ? Math.round(MAP_W * (worldBounds.maxZ - worldBounds.minZ) / (worldBounds.maxX - worldBounds.minX))
+    : MAP_W
+
+  const worldToMap = useCallback((wx, wz) => {
+    if (!worldBounds) return { mx: 0, my: 0 }
+    return {
+      mx: Math.round((wx - worldBounds.minX) / (worldBounds.maxX - worldBounds.minX) * MAP_W),
+      my: Math.round((wz - worldBounds.minZ) / (worldBounds.maxZ - worldBounds.minZ) * mapH),
+    }
+  }, [worldBounds, mapH])
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !buildingDefs || !worldBounds) return
     const ctx = canvas.getContext('2d')
     let rafId
 
     const draw = () => {
       rafId = requestAnimationFrame(draw)
-      ctx.clearRect(0, 0, MAP_W, MAP_H)
+      ctx.clearRect(0, 0, MAP_W, mapH)
 
       // 背景
       ctx.fillStyle = 'rgba(8, 10, 20, 0.82)'
-      ctx.fillRect(0, 0, MAP_W, MAP_H)
+      ctx.fillRect(0, 0, MAP_W, mapH)
 
       // 建筑块
       ctx.fillStyle = 'rgba(80, 90, 130, 0.75)'
-      BUILDING_DEFS.forEach(({ x, z, w, d }) => {
+      buildingDefs.forEach(({ x, z, w, d }) => {
         const tl = worldToMap(x - w / 2, z - d / 2)
         const br = worldToMap(x + w / 2, z + d / 2)
         ctx.fillRect(tl.mx, tl.my, br.mx - tl.mx, br.my - tl.my)
@@ -74,10 +58,8 @@ const MiniMap = ({ stateRef }) => {
       if (s.viewMode === 'fps' && s.camera) {
         const dir = new THREE.Vector3()
         s.camera.getWorldDirection(dir)
-        // canvas +Y = world +Z，对 dir.z 取反才能与地图方向一致
         yaw = Math.atan2(dir.x, -dir.z)
       } else {
-        // TPS 前进方向为 (-sin(tpsYaw), -cos(tpsYaw))，取负号对齐地图
         yaw = -(s.tpsYaw ?? 0)
       }
 
@@ -97,17 +79,17 @@ const MiniMap = ({ stateRef }) => {
       // 边框
       ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)'
       ctx.lineWidth = 1
-      ctx.strokeRect(0.5, 0.5, MAP_W - 1, MAP_H - 1)
+      ctx.strokeRect(0.5, 0.5, MAP_W - 1, mapH - 1)
     }
 
     draw()
     return () => cancelAnimationFrame(rafId)
-  }, [stateRef])
+  }, [stateRef, buildingDefs, worldBounds, worldToMap, mapH])
 
   return (
     <div className="minimap-wrap">
       <div className="minimap-label">MINIMAP</div>
-      <canvas ref={canvasRef} width={MAP_W} height={MAP_H} className="minimap-canvas" />
+      <canvas ref={canvasRef} width={MAP_W} height={mapH} className="minimap-canvas" />
     </div>
   )
 }
@@ -177,6 +159,50 @@ const Scene = ({ onBack }) => {
   const [sceneReady, setSceneReady] = useState(false)
   const [entered, setEntered] = useState(false)
 
+  // 街区数据（从 URL ?district= 加载）
+  const [districtData, setDistrictData] = useState(null)
+  const [districtError, setDistrictError] = useState(null)
+  useEffect(() => {
+    loadDistrict()
+      .then(setDistrictData)
+      .catch(err => setDistrictError(err.message))
+  }, [])
+
+  const districtSpawnPoint = districtData?.spawnPoint ?? null
+
+  // 以 spawnPoint 为中心 200×200m 的局部视野
+  const VIEW_RANGE = 100
+  const localBuildings = useMemo(() => {
+    const all = districtData?.buildings
+    if (!all || !districtSpawnPoint) return all ?? null
+    const { x: ox, z: oz } = districtSpawnPoint
+    // 建筑包围盒与视野范围有任意重叠即纳入
+    return all.filter(b =>
+      b.cx + b.w / 2 >= ox - VIEW_RANGE && b.cx - b.w / 2 <= ox + VIEW_RANGE &&
+      b.cz + b.d / 2 >= oz - VIEW_RANGE && b.cz - b.d / 2 <= oz + VIEW_RANGE
+    )
+  }, [districtData, districtSpawnPoint])
+
+  const localRoads = useMemo(() => {
+    const all = districtData?.roads
+    if (!all || !districtSpawnPoint) return all ?? null
+    const { x: ox, z: oz } = districtSpawnPoint
+    return all.filter(r => r.points?.some(([px, pz]) =>
+      px >= ox - VIEW_RANGE && px <= ox + VIEW_RANGE &&
+      pz >= oz - VIEW_RANGE && pz <= oz + VIEW_RANGE
+    ))
+  }, [districtData, districtSpawnPoint])
+
+  // 小地图 bounds：局部 100×100 区域
+  const localWorldBounds = districtSpawnPoint ? {
+    minX: districtSpawnPoint.x - VIEW_RANGE,
+    maxX: districtSpawnPoint.x + VIEW_RANGE,
+    minZ: districtSpawnPoint.z - VIEW_RANGE,
+    maxZ: districtSpawnPoint.z + VIEW_RANGE,
+  } : null
+
+  const localBuildingDefs = localBuildings?.map(b => ({ x: b.cx, z: b.cz, w: b.w, d: b.d })) ?? null
+
   // 漫游录制状态
   const [roaming, setRoaming] = useState(false)
   const [roamProgress, setRoamProgress] = useState(0)
@@ -207,6 +233,9 @@ const Scene = ({ onBack }) => {
     onLockChange: handleLockChange,
     onStartRoaming: useCallback(() => handleStartRoamingRef.current?.(), []),
     onReady: handleReady,
+    buildings: localBuildings,
+    roads: localRoads,
+    spawnPoint: districtSpawnPoint,
   })
 
   // 检测是否靠近墙面
@@ -313,7 +342,7 @@ const Scene = ({ onBack }) => {
           )}
 
           {/* 右下角小地图 */}
-          <MiniMap stateRef={stateRef} />
+          <MiniMap stateRef={stateRef} buildingDefs={localBuildingDefs} worldBounds={localWorldBounds} />
 
         </>
       )}

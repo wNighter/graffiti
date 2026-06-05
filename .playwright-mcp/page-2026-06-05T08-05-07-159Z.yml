@@ -1,0 +1,29 @@
+- generic [ref=e183]:
+  - generic [ref=e187]:
+    - generic [ref=e188]: SPRAYZ
+    - generic [ref=e189]: Virtual Street Art District
+    - generic [ref=e192]: 100%
+    - generic [ref=e193]: Ready
+    - button "Enter the District →" [ref=e194] [cursor=pointer]
+  - complementary [ref=e195]:
+    - generic [ref=e196]:
+      - generic [ref=e197]: ⚙️ Settings
+      - button "✕" [ref=e198] [cursor=pointer]
+    - generic [ref=e199]:
+      - generic [ref=e200]:
+        - generic [ref=e201]: 🎬 Roam Video
+        - paragraph [ref=e202]: Auto-generate a first-person roaming video (~30s). Download as .webm when done.
+        - button "Start Recording" [ref=e203] [cursor=pointer]
+      - generic:
+        - generic:
+          - text: 🖼️ Gallery Export
+          - generic: Coming Soon
+        - paragraph: Export all wall graffiti as a high-res image set.
+      - generic:
+        - generic:
+          - text: 🔊 Audio Settings
+          - generic: Coming Soon
+        - paragraph: Adjust ambient and spray sound volume.
+    - generic [ref=e204]:
+      - button "← Back to Home" [ref=e205] [cursor=pointer]
+      - text: Press Esc or click ✕ to close and return
