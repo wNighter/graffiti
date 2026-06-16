@@ -1008,6 +1008,171 @@ const createGate = (scene) => {
   return meshes
 }
 
+// ─── OSM 建筑辅助：多边形简化（Ramer-Douglas-Peucker）──────────
+const rdpSimplify = (pts, epsilon) => {
+  if (pts.length <= 2) return pts
+  let maxDist = 0, maxIdx = 0
+  const [x1, z1] = pts[0], [x2, z2] = pts[pts.length - 1]
+  const dx = x2 - x1, dz = z2 - z1
+  const len = Math.sqrt(dx * dx + dz * dz) || 1
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = Math.abs(dz * pts[i][0] - dx * pts[i][1] + x2 * z1 - z2 * x1) / len
+    if (d > maxDist) { maxDist = d; maxIdx = i }
+  }
+  if (maxDist <= epsilon) return [pts[0], pts[pts.length - 1]]
+  return [
+    ...rdpSimplify(pts.slice(0, maxIdx + 1), epsilon).slice(0, -1),
+    ...rdpSimplify(pts.slice(maxIdx), epsilon),
+  ]
+}
+
+// ─── OSM 建筑辅助：多边形向外偏移 ──────────────────────────────
+
+// 将闭合多边形每条边向外法线方向偏移 offset 米
+const offsetPolygon = (poly, offset) => {
+  const n = poly.length
+  return poly.map((pt, i) => {
+    const prev = poly[(i - 1 + n) % n]
+    const next = poly[(i + 1) % n]
+    // 两条相邻边的外法线
+    const nx1 = -(pt[1] - prev[1]), nz1 = pt[0] - prev[0]
+    const nx2 = -(next[1] - pt[1]), nz2 = next[0] - pt[0]
+    const len1 = Math.sqrt(nx1*nx1 + nz1*nz1) || 1
+    const len2 = Math.sqrt(nx2*nx2 + nz2*nz2) || 1
+    // 两法线平均后归一化
+    const mx = nx1/len1 + nx2/len2
+    const mz = nz1/len1 + nz2/len2
+    const ml = Math.sqrt(mx*mx + mz*mz) || 1
+    return [pt[0] + mx/ml * offset, pt[1] + mz/ml * offset]
+  })
+}
+
+// 从多边形世界坐标构建 Three.js Shape（用于 ExtrudeGeometry）
+// 反转数组确保 CCW 绕向，否则 cap 三角化会填充外部产生锯齿
+const polyToShape = poly => new THREE.Shape([...poly].reverse().map(([wx, wz]) => new THREE.Vector2(wx, -wz)))
+
+// 挤出扁平平面并放置（rotation.x=-PI/2，position.y=y）
+const extrudeFlat = (scene, shape, depth, color, y) => {
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false })
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }))
+  mesh.rotation.x = -Math.PI / 2
+  mesh.position.y = y
+  scene.add(mesh)
+}
+
+// ─── OSM 建筑屋顶/细节装饰 ──────────────────────────────────────
+
+const addOsmBuildingDetails = (scene, b, h) => {
+  const { cx, cz, w, d, style } = b
+  const sw = Math.min(w, d) // 短边，用于缩放装饰物
+
+  if (style === 'tower') {
+    // 屋顶设备间
+    const equipW = sw * 0.45
+    const equip = new THREE.Mesh(
+      new THREE.BoxGeometry(equipW, h * 0.09, equipW),
+      new THREE.MeshLambertMaterial({ color: 0x1e2e3e })
+    )
+    equip.position.set(cx, h + h * 0.045, cz)
+    scene.add(equip)
+    // 天线
+    const ant = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.07, h * 0.32, 6),
+      new THREE.MeshLambertMaterial({ color: 0x999999 })
+    )
+    ant.position.set(cx, h + h * 0.16, cz)
+    scene.add(ant)
+    // 信标灯
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 6, 6),
+      new THREE.MeshLambertMaterial({ color: 0xff2200, emissive: 0xaa1100 })
+    )
+    beacon.position.set(cx, h + h * 0.32, cz)
+    scene.add(beacon)
+  }
+
+  if (style === 'apartment') {
+    // 斜屋顶
+    const roofMesh = new THREE.Mesh(
+      new THREE.ConeGeometry(sw * 0.72, h * 0.25, 4),
+      new THREE.MeshLambertMaterial({ color: 0x6a4828 })
+    )
+    roofMesh.position.set(cx, h + h * 0.125 + 0.02, cz)
+    roofMesh.rotation.y = Math.PI / 4
+    scene.add(roofMesh)
+    // 烟囱
+    const chim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, h * 0.18, 0.5),
+      new THREE.MeshLambertMaterial({ color: 0xbb9977 })
+    )
+    chim.position.set(cx + sw * 0.2, h + h * 0.27 + h * 0.09, cz + sw * 0.1)
+    scene.add(chim)
+  }
+
+  if (style === 'corner') {
+    // 退台屋顶
+    const template = BUILDING_TYPES.corner
+    const step1 = new THREE.Mesh(
+      new THREE.BoxGeometry(sw * 0.72, h * 0.11, sw * 0.72),
+      new THREE.MeshLambertMaterial({ color: template.roofColor })
+    )
+    step1.position.set(cx, h + h * 0.055, cz)
+    scene.add(step1)
+    const step2 = new THREE.Mesh(
+      new THREE.BoxGeometry(sw * 0.42, h * 0.1, sw * 0.42),
+      new THREE.MeshLambertMaterial({ color: new THREE.Color(template.roofColor).addScalar(0.05) })
+    )
+    step2.position.set(cx, h + h * 0.16, cz)
+    scene.add(step2)
+    // 水箱
+    const tankMat = new THREE.MeshLambertMaterial({ color: 0x8b7355 })
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.72, 1.4, 10), tankMat)
+    tank.position.set(cx + sw * 0.18, h + h * 0.22 + 0.7, cz - sw * 0.12)
+    scene.add(tank)
+    const tankRoof = new THREE.Mesh(new THREE.ConeGeometry(0.76, 0.5, 10), tankMat)
+    tankRoof.position.set(cx + sw * 0.18, h + h * 0.22 + 1.65, cz - sw * 0.12)
+    scene.add(tankRoof)
+  }
+
+  if (style === 'shop') {
+    // 找最长边方向，沿其铺遮阳棚
+    let maxLen = 0, awningDir = [1, 0]
+    for (let i = 0; i < (b.footprint?.length ?? 0) - 1; i++) {
+      const [dx1, dz1] = b.footprint[i]
+      const [dx2, dz2] = b.footprint[i + 1]
+      const l = Math.sqrt((dx2-dx1)**2 + (dz2-dz1)**2)
+      if (l > maxLen) { maxLen = l; awningDir = [dx2-dx1, dz2-dz1] }
+    }
+    const awningAngle = Math.atan2(awningDir[0], awningDir[1])
+    const awning = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.min(maxLen, w), 0.22, 1.8),
+      new THREE.MeshLambertMaterial({ color: 0xbb2f1e })
+    )
+    awning.position.set(cx, h - 0.5, cz)
+    awning.rotation.y = awningAngle
+    scene.add(awning)
+    // 招牌灯
+    const signLight = new THREE.PointLight(0xff7744, 0.9, 7)
+    signLight.position.set(cx, h + 0.4, cz)
+    scene.add(signLight)
+  }
+
+  if (style === 'warehouse') {
+    // 排烟管道
+    const chimMat = new THREE.MeshLambertMaterial({ color: 0x4a4a4a })
+    const chim = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.33, h * 0.42, 8), chimMat
+    )
+    chim.position.set(cx + sw * 0.3, h * 0.71, cz - d * 0.3)
+    scene.add(chim)
+    const chimCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.42, 0.28, 0.28, 8), chimMat
+    )
+    chimCap.position.set(cx + sw * 0.3, h * 0.71 + h * 0.22, cz - d * 0.3)
+    scene.add(chimCap)
+  }
+}
+
 // ─── 道路渲染 ────────────────────────────────────────────────────
 
 const ROAD_COLORS = {
@@ -1166,30 +1331,42 @@ const buildStreetScene = (scene, osmBuildings, roads, spawnPoint) => {
       const pts = raw.length >= 2 &&
         raw[0][0] === raw[raw.length - 1][0] && raw[0][1] === raw[raw.length - 1][1]
         ? raw.slice(0, -1) : raw
-      const worldPoly = pts.map(([dx, dz]) => [b.cx + dx, b.cz + dz])
+      const worldPoly = rdpSimplify(pts.map(([dx, dz]) => [b.cx + dx, b.cz + dz]), 1.5)
 
       if (worldPoly.length < 3) {
-        // 无有效 footprint，退回 BoxGeometry
+        // 无有效 footprint，退回 BoxGeometry（含全部细节）
         const def = { ...template, w: b.w, h, d: b.d }
         buildingMeshes.push(createBuilding(scene, def, b.cx, b.cz))
-        buildingPolygons.push(null) // 用 null 占位，碰撞用包围盒兜底
+        buildingPolygons.push(null)
         const m = 0.9
         buildingBoxes.push({ minX: b.cx - b.w/2 - m, maxX: b.cx + b.w/2 + m, minZ: b.cz - b.d/2 - m, maxZ: b.cz + b.d/2 + m })
         return
       }
 
-      // Three.js Shape：(wx, -wz)，再 rotation.x = -PI/2 使挤出方向朝上
-      const shape = new THREE.Shape(worldPoly.map(([wx, wz]) => new THREE.Vector2(wx, -wz)))
+      // ── 主体：ExtrudeGeometry（反转确保 CCW，cap 三角化正确）
+      const shape = new THREE.Shape([...worldPoly].reverse().map(([wx, wz]) => new THREE.Vector2(wx, -wz)))
       const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false })
 
+      // ── 墙面纹理：计算周长修正 UV 平铺，避免窗户拉伸
+      const perimeter = worldPoly.reduce((sum, pt, i) => {
+        const next = worldPoly[(i + 1) % worldPoly.length]
+        return sum + Math.sqrt((next[0]-pt[0])**2 + (next[1]-pt[1])**2)
+      }, 0)
+      const unitW = Math.max(b.w, b.d)
       const hexStr = template.baseColor.toString(16).padStart(6, '0')
       const drawFn = drawWindows[styleKey] || drawWindows.apartment
-      const wallCanvas = makeOffscreen(Math.max(b.w, b.d), h, (ctx, pw, ph) => drawFn(ctx, pw, ph, hexStr))
+      const wallCanvas = makeOffscreen(unitW, h, (ctx, pw, ph) => {
+        drawFn(ctx, pw, ph, hexStr)
+        applyWeathering(ctx, pw, ph)
+      })
       const wallTex = new THREE.CanvasTexture(wallCanvas)
+      wallTex.wrapS = THREE.RepeatWrapping
+      wallTex.wrapT = THREE.RepeatWrapping
+      wallTex.repeat.set(perimeter / unitW, 1)
 
       const mesh = new THREE.Mesh(geo, [
-        new THREE.MeshLambertMaterial({ map: wallTex }),          // 侧面（墙）
-        new THREE.MeshLambertMaterial({ color: template.roofColor }), // 顶/底面
+        new THREE.MeshLambertMaterial({ map: wallTex }),
+        new THREE.MeshLambertMaterial({ color: template.roofColor }),
       ])
       mesh.rotation.x = -Math.PI / 2
       mesh.userData = {
@@ -1199,7 +1376,32 @@ const buildStreetScene = (scene, osmBuildings, roads, spawnPoint) => {
       scene.add(mesh)
       buildingMeshes.push(mesh)
 
-      // 碰撞：精确 footprint 多边形（不含 margin，道路不会被误封）
+      // ── 底座（外扩 0.4m，高 0.55m）
+      const baseColor3 = new THREE.Color(template.baseColor).multiplyScalar(0.65)
+      extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.4)), 0.55, baseColor3, 0)
+
+      // ── 底座压线
+      extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.43)), 0.12,
+        new THREE.Color(template.baseColor).multiplyScalar(0.9), 0.56)
+
+      // ── 腰线（中高层建筑）
+      if (h >= 8) {
+        const waistY = h * 0.32
+        extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.12)), 0.18,
+          new THREE.Color(template.roofColor).addScalar(0.06), waistY)
+        extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.11)), 0.06,
+          0x111111, waistY - 0.13)
+      }
+
+      // ── 檐口（外扩 0.25m，高 0.22m，位于顶部）
+      extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.25)), 0.22,
+        new THREE.Color(template.roofColor).addScalar(0.08), h)
+      extrudeFlat(scene, polyToShape(offsetPolygon(worldPoly, 0.24)), 0.08, 0x0a0a0a, h - 0.05)
+
+      // ── 屋顶/风格装饰
+      addOsmBuildingDetails(scene, b, h)
+
+      // ── 碰撞：精确 footprint 多边形
       buildingPolygons.push(worldPoly)
     })
   } else {
